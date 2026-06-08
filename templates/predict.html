@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Prediction - {{ username }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body class="bg-light min-vh-100">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
+                <i class="bi bi-house-door"></i> Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                <a href="{{ url_for('predict') }}" class="nav-link active">📈 Predict</a>
+                <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-12">
+                <div class="card shadow-lg">
+                    <div class="card-header bg-gradient text-white text-center py-4" 
+                         style="background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);">
+                        <h2 class="mb-2"><i class="bi bi-graph-up-arrow"></i> Stock Market Prediction</h2>
+                        <p class="mb-0">10 Features - Powered by stock.pkl</p>
+                    </div>
+                    <div class="card-body p-5">
+                        <!-- Flash messages -->
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'danger' else category }} alert-dismissible fade show" role="alert">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <!-- Prediction Result -->
+                        {% if prediction_result %}
+                        <div class="alert alert-success shadow-sm p-4 mb-4">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-check-circle-fill fs-1 text-success me-3"></i>
+                                <div>
+                                    <h4 class="mb-2">{{ prediction_result }}</h4>
+                                    {% if probability %}
+                                    <div class="progress mb-2" style="height: 25px;">
+                                        <div class="progress-bar bg-success" style="width: {{ '%.0f'|format(probability*100) }}%">
+                                            {{ '%.1f'|format(probability*100) }}% Confidence
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    <small class="text-muted">10-feature stock.pkl model</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Prediction Form - 10 FEATURES (NO VOLUME) -->
+                        <form method="POST">
+                            <h5 class="text-center mb-4 text-primary">📊 Enter 10 Stock Features</h5>
+                            
+                            <div class="row g-3 mb-4">
+                                <!-- Price Features (Row 1) -->
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">📈 Open ($)</label>
+                                    <input type="number" step="0.01" name="open" class="form-control form-control-lg" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">📊 High ($)</label>
+                                    <input type="number" step="0.01" name="high" class="form-control form-control-lg" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">📉 Low ($)</label>
+                                    <input type="number" step="0.01" name="low" class="form-control form-control-lg" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">💰 Close ($)</label>
+                                    <input type="number" step="0.01" name="close" class="form-control form-control-lg" required>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mb-4">
+                                <!-- Adj Close & Returns (Row 2) -->
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">🔧 Adj Close ($)</label>
+                                    <input type="number" step="0.01" name="adj_close" class="form-control form-control-lg" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">📈 Returns (%)</label>
+                                    <input type="number" step="0.0001" name="returns" class="form-control form-control-lg" required>
+                                </div>
+                            </div>
+
+                            <div class="row g-3 mb-4">
+                                <!-- Date Features (Row 3) -->
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">📅 Year</label>
+                                    <input type="number" name="year" class="form-control form-control-lg" required min="2000" max="2030">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">🌙 Month (1-12)</label>
+                                    <input type="number" name="month" class="form-control form-control-lg" required min="1" max="12">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">📊 Quarter (1-4)</label>
+                                    <input type="number" name="quarter" class="form-control form-control-lg" required min="1" max="4">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label fw-bold">🗓️ Day (1-31)</label>
+                                    <input type="number" name="day" class="form-control form-control-lg" required min="1" max="31">
+                                </div>
+                            </div>
+
+                            <div class="text-center mt-4">
+                                <button type="submit" class="btn btn-primary btn-lg px-5 py-3 shadow-lg">
+                                    <i class="bi bi-rocket-takeoff"></i> Predict (10 Features)
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Example values - NO VOLUME -->
+                        <div class="mt-5 p-4 bg-light rounded border">
+                            <h6 class="text-primary mb-3">💡 Example Values (TEST DATA):</h6>
+                            <div class="row text-muted">
+                                <div class="col-md-3">Open: <code>150.25</code></div>
+                                <div class="col-md-3">High: <code>155.80</code></div>
+                                <div class="col-md-3">Low: <code>148.10</code></div>
+                                <div class="col-md-3">Close: <code>152.45</code></div>
+                                <div class="col-md-3">Adj Close: <code>152.30</code></div>
+                                <div class="col-md-3">Returns: <code>0.015</code></div>
+                                <div class="col-md-3">Year: <code>2026</code></div>
+                                <div class="col-md-3">Month: <code>2</code></div>
+                                <div class="col-md-3">Quarter: <code>1</code></div>
+                                <div class="col-md-3">Day: <code>16</code></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
