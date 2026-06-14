@@ -8,7 +8,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
 </head>
 <body class="bg-light min-vh-100">
-    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
         <div class="container">
             <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
@@ -29,10 +28,9 @@
                     <div class="card-header bg-gradient text-white text-center py-4" 
                          style="background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);">
                         <h2 class="mb-2"><i class="bi bi-graph-up-arrow"></i> Stock Market Prediction</h2>
-                        <p class="mb-0">10 Features - Powered by stock.pkl</p>
+                        <p class="mb-0">Regression Output - Powered by stock.pkl</p>
                     </div>
                     <div class="card-body p-5">
-                        <!-- Flash messages -->
                         {% with messages = get_flashed_messages(with_categories=true) %}
                             {% if messages %}
                                 {% for category, message in messages %}
@@ -44,32 +42,23 @@
                             {% endif %}
                         {% endwith %}
 
-                        <!-- Prediction Result -->
                         {% if prediction_result %}
-                        <div class="alert alert-success shadow-sm p-4 mb-4">
-                            <div class="d-flex align-items-center">
-                                <i class="bi bi-check-circle-fill fs-1 text-success me-3"></i>
+                        <div class="alert alert-info shadow-sm p-4 mb-5 text-center">
+                            <div class="d-flex flex-column align-items-center">
+                                <i class="bi bi-currency-dollar fs-1 text-primary mb-2"></i>
                                 <div>
-                                    <h4 class="mb-2">{{ prediction_result }}</h4>
-                                    {% if probability %}
-                                    <div class="progress mb-2" style="height: 25px;">
-                                        <div class="progress-bar bg-success" style="width: {{ '%.0f'|format(probability*100) }}%">
-                                            {{ '%.1f'|format(probability*100) }}% Confidence
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                    <small class="text-muted">10-feature stock.pkl model</small>
+                                    <small class="text-muted text-uppercase fw-bold d-block mb-1">Predicted Stock Value</small>
+                                    <h2 class="display-5 fw-bold text-dark mb-0">{{ prediction_result }}</h2>
+                                    <small class="text-muted d-block mt-2">10-feature continuous regression target</small>
                                 </div>
                             </div>
                         </div>
                         {% endif %}
 
-                        <!-- Prediction Form - 10 FEATURES (NO VOLUME) -->
                         <form method="POST">
                             <h5 class="text-center mb-4 text-primary">📊 Enter 10 Stock Features</h5>
                             
                             <div class="row g-3 mb-4">
-                                <!-- Price Features (Row 1) -->
                                 <div class="col-md-3">
                                     <label class="form-label fw-bold">📈 Open ($)</label>
                                     <input type="number" step="0.01" name="open" class="form-control form-control-lg" required>
@@ -89,7 +78,6 @@
                             </div>
 
                             <div class="row g-3 mb-4">
-                                <!-- Adj Close & Returns (Row 2) -->
                                 <div class="col-md-6">
                                     <label class="form-label fw-bold">🔧 Adj Close ($)</label>
                                     <input type="number" step="0.01" name="adj_close" class="form-control form-control-lg" required>
@@ -101,7 +89,6 @@
                             </div>
 
                             <div class="row g-3 mb-4">
-                                <!-- Date Features (Row 3) -->
                                 <div class="col-md-3">
                                     <label class="form-label fw-bold">📅 Year</label>
                                     <input type="number" name="year" class="form-control form-control-lg" required min="2000" max="2030">
@@ -122,12 +109,11 @@
 
                             <div class="text-center mt-4">
                                 <button type="submit" class="btn btn-primary btn-lg px-5 py-3 shadow-lg">
-                                    <i class="bi bi-rocket-takeoff"></i> Predict (10 Features)
+                                    <i class="bi bi-rocket-takeoff"></i> Predict Future Price
                                 </button>
                             </div>
                         </form>
 
-                        <!-- Example values - NO VOLUME -->
                         <div class="mt-5 p-4 bg-light rounded border">
                             <h6 class="text-primary mb-3">💡 Example Values (TEST DATA):</h6>
                             <div class="row text-muted">
