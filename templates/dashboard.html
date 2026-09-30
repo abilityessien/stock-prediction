@@ -4,63 +4,110 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - {{ username }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-light min-vh-100">
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
-        <div class="container">
-            <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">
-                <i class="bi bi-house-door"></i> Dashboard
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Global Live Stock Ticker Tape Widget -->
+    <div class="tradingview-widget-container w-full bg-slate-950 border-b border-slate-800">
+        <div class="tradingview-widget-container__widget"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+        {
+          "symbols": [
+            { "proName": "FOREXCOM:SPXUSD", "title": "S&P 500" },
+            { "proName": "FOREXCOM:NSXUSD", "title": "Nasdaq 100" },
+            { "proName": "NASDAQ:AAPL", "title": "Apple" },
+            { "proName": "NASDAQ:NVDA", "title": "NVIDIA" },
+            { "proName": "NASDAQ:MSFT", "title": "Microsoft" },
+            { "proName": "NASDAQ:AMZN", "title": "Amazon" }
+          ],
+          "showSymbolLogo": true,
+          "colorTheme": "dark",
+          "isTransparent": false,
+          "displayMode": "adaptive",
+          "locale": "en"
+        }
+        </script>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="bg-slate-800/90 backdrop-blur border-b border-slate-700 px-6 py-4 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <a href="{{ url_for('dashboard') }}" class="flex items-center space-x-2 text-xl font-bold text-white">
+                <i class="fa-solid fa-chart-line text-blue-500"></i>
+                <span>StockApp</span>
             </a>
-            <div class="navbar-nav ms-auto">
-                <a href="{{ url_for('logout') }}" class="nav-link">
-                    <i class="bi bi-box-arrow-right"></i> Logout
+            <div class="flex items-center space-x-4">
+                <span class="text-slate-400 text-sm hidden sm:inline"><i class="fa-solid fa-user text-slate-500 mr-1"></i> {{ username }}</span>
+                <a href="{{ url_for('predict') }}" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Predict
+                </a>
+                <a href="{{ url_for('logout') }}" class="px-3 py-1.5 bg-slate-700 hover:bg-red-600 text-slate-200 hover:text-white rounded-lg text-sm font-medium transition">
+                    <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Logout
                 </a>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card shadow">
-                    <div class="card-header bg-success text-white text-center">
-                        <h2>Welcome back, {{ username }}!</h2>
-                        <p class="mb-0">You are successfully logged in</p>
-                    </div>
-                    <div class="card-body text-center p-5">
-                        <div class="row">
-                            <div class="col-md-6 mb-4">
-                                <div class="card bg-primary text-white h-100">
-                                    <div class="card-body">
-                                        <h4>User ID: {{ session.id }}</h4>
-                                        <p>Session Active</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-4">
-                                <div class="card bg-info text-white h-100">
-                                    <div class="card-body">
-                                        <h4>Status</h4>
-                                        <p>Logged in as: {{ username }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Quick actions -->
-                        <div class="mt-4">
-                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary btn-lg me-2">Dashboard</a>
-                            <a href="{{ url_for('predict') }}" class="btn btn-warning btn-lg me-2">Predict📈</a> 
-                            <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-lg">Logout</a>
-                        </div>
-                    </div>
-                </div>
+    <!-- Main Content -->
+    <main class="max-w-6xl w-full mx-auto p-6 flex-1 space-y-6">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-white">Welcome back, {{ username }}!</h1>
+                <p class="text-slate-400 mt-1">Live market data streaming active above. Ready for AI prediction?</p>
+            </div>
+            <a href="{{ url_for('predict') }}" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-lg transition flex items-center space-x-2">
+                <i class="fa-solid fa-calculator"></i>
+                <span>Go to Predictor</span>
+            </a>
+        </div>
+
+        <!-- Live Overview Chart Widget -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 h-[500px] overflow-hidden">
+            <div class="tradingview-widget-container h-full w-full">
+                <div class="tradingview-widget-container__widget h-full w-full"></div>
+                <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
+                {
+                  "symbols": [
+                    [ "Apple", "NASDAQ:AAPL|1D" ],
+                    [ "Google", "NASDAQ:GOOGL|1D" ],
+                    [ "Microsoft", "NASDAQ:MSFT|1D" ],
+                    [ "NVIDIA", "NASDAQ:NVDA|1D" ]
+                  ],
+                  "chartOnly": false,
+                  "width": "100%",
+                  "height": "100%",
+                  "locale": "en",
+                  "colorTheme": "dark",
+                  "autosize": true,
+                  "showVolume": false,
+                  "showMA": false,
+                  "hideDateRanges": false,
+                  "hideMarketStatus": false,
+                  "hideSymbolLogo": false,
+                  "scalePosition": "right",
+                  "scaleMode": "Normal",
+                  "fontFamily": "-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif",
+                  "fontSize": "10",
+                  "noTimeScale": false,
+                  "valuesTracking": "1",
+                  "changeMode": "price-and-percent",
+                  "chartType": "area",
+                  "backgroundColor": "rgba(30, 41, 59, 1)",
+                  "lineWidth": 2,
+                  "lineType": 0,
+                  "dateRanges": [
+                    "1d|1",
+                    "1m|30",
+                    "3m|60",
+                    "1y|1D",
+                    "all|1M"
+                  ]
+                }
+                </script>
             </div>
         </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    </main>
 </body>
 </html>

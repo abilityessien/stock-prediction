@@ -1,129 +1,124 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
-from flask_mysqldb import MySQL
-from werkzeug.security import generate_password_hash, check_password_hash
-from ml_model import predictor
+import warnings
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+import pandas as pd
+from ml_model import predictor  # Utilize the central model wrapper
 
+# ------------------------------------------------------------------
+# 1. Suppress Scikit-Learn Warnings
+# ------------------------------------------------------------------
+from sklearn.exceptions import InconsistentVersionWarning
+warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+
+# ------------------------------------------------------------------
+# 2. Initialize Flask App
+# ------------------------------------------------------------------
 app = Flask(__name__)
-app.secret_key = '10eca762be55fdc99570c668bfad9d5a99700265713c2d492cd6ef3674d9ab68'
+app.secret_key = "super_secret_stock_app_key"
 
-# MySQL configuration
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
-app.config['MYSQL_DB'] = 'users'  
+# Mock Database
+users_db = {"demo": "password123"}
 
-# FIX 1: Force MySQL to return rows as dictionaries instead of raw tuples.
-# This makes user['password'] work flawlessly regardless of column order!
-app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
-mysql = MySQL(app)
 
+
+# ------------------------------------------------------------------
+# 3. App Routes
+# ------------------------------------------------------------------
 @app.route('/')
 def home():
-    if 'loggedin' in session:
-        return redirect(url_for('dashboard'))
+    print(">>> SERVING HOME PAGE <<<")
+    # Show home landing page regardless of session
     return render_template('home.html')
 
-# Registration route
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if 'loggedin' in session:
-        return redirect(url_for('dashboard'))
-    
-    if request.method == 'POST':
-        user_name = request.form['username']
-        password = request.form['password']
-        
-        cur = mysql.connection.cursor()
-        cur.execute('SELECT * FROM user WHERE User_name = %s', (user_name,))
-        if cur.fetchone():
-            flash('Username already exists!', 'danger')
-            cur.close()
-            return render_template('register.html')
-        
-        # Create new user
-        hashed_password = generate_password_hash(password)
-        cur.execute('INSERT INTO user (User_name, password) VALUES (%s, %s)', 
-                    (user_name, hashed_password))
-        mysql.connection.commit()
-        cur.close()
-        flash('Registration successful! Please login.', 'success')
-        return redirect(url_for('login'))
-    
-    return render_template('register.html')
-
-# FIX 2: Upgraded Login Route using explicitly safe key mappings
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'loggedin' in session:
+    if 'username' in session:
         return redirect(url_for('dashboard'))
-    
+        
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        cur = mysql.connection.cursor()
-        cur.execute('SELECT * FROM user WHERE User_name = %s', (username,))
-        user = cur.fetchone()
-        cur.close()
-        
-        # Now accessing elements via actual dictionary column names
-        if user and check_password_hash(user['password'], password):
-            session['loggedin'] = True
-            session['id'] = user['id']
-            session['username'] = user['User_name']
-            flash('Logged in successfully!', 'success')
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username in users_db and users_db[username] == password:
+            session['username'] = username
             return redirect(url_for('dashboard'))
-        else:
-            flash('Incorrect Username or Password!', 'danger')
-    
+        flash("Invalid username or password.", "danger")
     return render_template('login.html')
 
-@app.route('/logout')
-def logout():
-    session.clear() # Safer implementation: wipes all old trace parameters cleanly
-    flash('You have been logged out', 'info')
-    return redirect(url_for('home'))
-
-@app.route('/predict', methods=['GET', 'POST'])
-def predict():
-    if 'loggedin' not in session:
-        flash('Please log in to access this page', 'warning')
-        return redirect(url_for('login'))
-    
-    prediction_result = None
-    
+@app.route('/register', methods=['GET', 'POST'])
+def register():
     if request.method == 'POST':
-        try:
-            features = [
-                float(request.form['open']),
-                float(request.form['high']),
-                float(request.form['low']),
-                float(request.form['close']),
-                float(request.form['adj_close']),
-                float(request.form['returns']),
-                int(request.form['year']),
-                int(request.form['month']),
-                int(request.form['quarter']),
-                int(request.form['day'])
-            ]
-            
-            predicted_price = predictor.predict(features)
-            prediction_result = f"${predicted_price:,.2f}"
-            
-        except Exception as e:
-            flash(f'Error: {str(e)}', 'danger')
-    
-    return render_template('predict.html', 
-                           username=session['username'],
-                           prediction_result=prediction_result)
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username in users_db:
+            flash("User already exists.", "danger")
+        else:
+            users_db[username] = password
+            flash("Account created! Please log in.", "success")
+            return redirect(url_for('login'))
+    return render_template('register.html')
 
 @app.route('/dashboard')
 def dashboard():
-    if 'loggedin' not in session:
-        flash('Please log in to access this page', 'warning')
+    if 'username' not in session:
         return redirect(url_for('login'))
     return render_template('dashboard.html', username=session['username'])
 
+@app.route('/predict', methods=['GET', 'POST'])
+def predict():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    prediction_result = None
+    form_data = {}
+
+    if request.method == 'POST':
+        form_data = request.form.to_dict()
+        try:
+            # Map input fields to exact DataFrame column names expected by stock.pkl
+            feature_dict = {
+                'Open': float(request.form['open']),
+                'High': float(request.form['high']),
+                'Low': float(request.form['low']),
+                'Close': float(request.form['close']),
+                'Adj Close': float(request.form['adj_close']),
+                'Returns': float(request.form['returns']),
+                'Year': int(request.form['year']),
+                'Month': int(request.form['month']),
+                'Quarter': int(request.form['quarter']),
+                'Day': int(request.form['day'])
+            }
+
+            # Convert dictionary into a Pandas DataFrame with exact column headers
+            input_df = pd.DataFrame([feature_dict])
+
+            # Pass DataFrame directly to the predictor
+            predicted_val = predictor.predict(input_df)
+            
+            # If predictor returns an array or series, extract scalar float
+            if hasattr(predicted_val, '__len__'):
+                predicted_val = predicted_val[0]
+
+            prediction_result = f"${float(predicted_val):,.2f}"
+
+        except KeyError as ke:
+            flash(f"Missing required input field: {str(ke)}", "danger")
+        except ValueError:
+            flash("Please enter valid numerical values in all fields.", "danger")
+        except Exception as e:
+            flash(f"Prediction error: {str(e)}", "danger")
+
+    return render_template(
+        'predict.html', 
+        prediction_result=prediction_result, 
+        form_data=form_data, 
+        username=session.get('username')
+    )
+
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    return redirect(url_for('login'))
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

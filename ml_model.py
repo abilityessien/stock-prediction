@@ -1,4 +1,5 @@
 import joblib
+import pandas as pd
 import numpy as np
 import os
 
@@ -6,41 +7,38 @@ class StockPredictor:
     def __init__(self, model_path='stock.pkl'):
         self.model = None
         self.model_path = model_path
+        # Match exact capitalization used when training stock.pkl
+        self.feature_names = ['Open', 'High', 'Low', 'Close', 'Adj Close', 'Returns', 'Year', 'Month', 'Quarter', 'Day']
         self.load_model()
     
     def load_model(self):
-        """Load your regression stock.pkl model"""
+        """Load the regression stock.pkl model"""
         if os.path.exists(self.model_path):
             try:
                 self.model = joblib.load(self.model_path)
-                print(f"✅ Your stock.pkl model loaded successfully!")
-                print(f"Model type: {type(self.model).__name__}")
-                if hasattr(self.model, 'n_features_in_'):
-                    print(f"Expected features: {self.model.n_features_in_} (matches your 10 input features)")
+                print(f"✅ stock.pkl model loaded successfully!")
             except Exception as e:
                 print(f"❌ Error loading stock.pkl: {e}")
                 self.model = None
         else:
-            print(f"❌ stock.pkl not found at {os.path.abspath(self.model_path)}")
+            print(f"⚠️ stock.pkl not found at {os.path.abspath(self.model_path)}.")
             self.model = None
     
     def predict(self, features):
-        """Predict using your features array and return a numeric stock price"""
+        """Predict using the 10-feature list or array"""
         if self.model is None:
-            raise Exception("stock.pkl model not loaded. Place stock.pkl in the same folder as app.py")
+            raise Exception("Model file (stock.pkl) is missing or unreadable.")
         
         try:
-            # Reshape features to a 2D array (1 sample, 10 features)
-            features_array = np.array(features).reshape(1, -1)
-            
-            # For regression, this extracts the continuous target value (the target price)
-            predicted_price = self.model.predict(features_array)[0]
-            
-            # Return the value as a basic float
+            # If features is already a DataFrame, ensure columns match; otherwise build DataFrame
+            if isinstance(features, pd.DataFrame):
+                input_df = features[self.feature_names]
+            else:
+                input_df = pd.DataFrame([features], columns=self.feature_names)
+                
+            predicted_price = self.model.predict(input_df)[0]
             return float(predicted_price)
-            
         except Exception as e:
-            raise Exception(f"Prediction error: {str(e)}")
+            raise Exception(f"Prediction calculation error: {str(e)}")
 
-# Global instance for your model
 predictor = StockPredictor('stock.pkl')
