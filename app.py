@@ -1,6 +1,8 @@
 import warnings
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 import pandas as pd
+import yfinance as yf
 from ml_model import predictor  # Utilize the central model wrapper
 
 # ------------------------------------------------------------------
@@ -19,7 +21,8 @@ app.secret_key = "super_secret_stock_app_key"
 # Mock Database
 users_db = {"demo": "password123"}
 
-
+# Popular stock ticker shortcuts for quick UI selection
+POPULAR_TICKERS = ["AAPL", "NVDA", "MSFT", "AMZN", "GOOGL", "TSLA"]
 
 
 # ------------------------------------------------------------------
@@ -28,7 +31,6 @@ users_db = {"demo": "password123"}
 @app.route('/')
 def home():
     print(">>> SERVING HOME PAGE <<<")
-    # Show home landing page regardless of session
     return render_template('home.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -70,10 +72,52 @@ def predict():
         return redirect(url_for('login'))
 
     prediction_result = None
+    raw_prediction = None
     form_data = {}
+    selected_ticker = ""
 
-    if request.method == 'POST':
-        form_data = request.form.to_dict()
+    # Check if user requested auto-fill via ticker lookup (URL query or form)
+    ticker_param = request.args.get('ticker') or request.form.get('fetch_ticker')
+    
+    if ticker_param:
+        selected_ticker = ticker_param.strip().upper()
+        try:
+            stock = yf.Ticker(selected_ticker)
+            df = stock.history(period="5d")
+
+            if df.empty:
+                flash(f"Could not fetch data for ticker '{selected_ticker}'. Please check the symbol.", "danger")
+            else:
+                # Extract the latest market day row and date
+                latest_row = df.iloc[-1]
+                latest_date = df.index[-1]
+
+                # Compute Daily Return based on previous day close
+                prev_close = df['Close'].iloc[-2] if len(df) > 1 else latest_row['Open']
+                daily_return = (latest_row['Close'] - prev_close) / prev_close
+
+                # Populate form fields automatically
+                form_data = {
+                    'open': round(float(latest_row['Open']), 2),
+                    'high': round(float(latest_row['High']), 2),
+                    'low': round(float(latest_row['Low']), 2),
+                    'close': round(float(latest_row['Close']), 2),
+                    'adj_close': round(float(latest_row['Close']), 2),
+                    'returns': round(float(daily_return), 4),
+                    'year': int(latest_date.year),
+                    'month': int(latest_date.month),
+                    'quarter': int((latest_date.month - 1) // 3 + 1),
+                    'day': int(latest_date.day)
+                }
+                flash(f"Successfully loaded live market data for {selected_ticker}!", "success")
+
+        except Exception as e:
+            flash(f"Failed to fetch market data: {str(e)}", "danger")
+
+    # Handle prediction submission
+    if request.method == 'POST' and ('calculate_prediction' in request.form or 'open' in request.form):
+        # Merge form submission data so fields persist
+        form_data.update(request.form.to_dict())
         try:
             # Map input fields to exact DataFrame column names expected by stock.pkl
             feature_dict = {
@@ -89,17 +133,17 @@ def predict():
                 'Day': int(request.form['day'])
             }
 
-            # Convert dictionary into a Pandas DataFrame with exact column headers
+            # Convert dictionary into Pandas DataFrame
             input_df = pd.DataFrame([feature_dict])
 
-            # Pass DataFrame directly to the predictor
+            # Pass DataFrame directly to predictor
             predicted_val = predictor.predict(input_df)
-            
-            # If predictor returns an array or series, extract scalar float
+
             if hasattr(predicted_val, '__len__'):
                 predicted_val = predicted_val[0]
 
-            prediction_result = f"${float(predicted_val):,.2f}"
+            raw_prediction = float(predicted_val)
+            prediction_result = f"₦{raw_prediction:,.2f}"
 
         except KeyError as ke:
             flash(f"Missing required input field: {str(ke)}", "danger")
@@ -110,8 +154,11 @@ def predict():
 
     return render_template(
         'predict.html', 
-        prediction_result=prediction_result, 
+        prediction_result=prediction_result,
+        raw_prediction=raw_prediction,
         form_data=form_data, 
+        selected_ticker=selected_ticker,
+        popular_tickers=POPULAR_TICKERS,
         username=session.get('username')
     )
 

@@ -6,8 +6,10 @@
     <title>Stock Price Prediction</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN for Prediction Trend Graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
     <!-- Live Stock Ticker -->
     <div class="tradingview-widget-container w-full bg-slate-950 border-b border-slate-800 overflow-x-auto">
@@ -30,7 +32,7 @@
       </script>
     </div>
 
-    <!-- Navbar -->
+    <!-- Navigation -->
     <nav class="bg-slate-800/90 backdrop-blur border-b border-slate-700 px-6 py-4 sticky top-0 z-50">
         <div class="max-w-6xl mx-auto flex justify-between items-center">
             <a href="{{ url_for('dashboard') }}" class="flex items-center space-x-2 text-xl font-bold text-white">
@@ -44,6 +46,7 @@
         </div>
     </nav>
 
+    <!-- Main Content -->
     <main class="max-w-4xl w-full mx-auto p-6 flex-1 space-y-6">
         <div>
             <h1 class="text-2xl font-bold text-white">Stock Price Predictor</h1>
@@ -60,35 +63,155 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Prediction Result Card -->
-        {% if prediction_result %}
-        <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 text-center space-y-2">
-            <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Estimated Stock Price</span>
-            <div class="text-4xl md:text-5xl font-extrabold text-emerald-300">{{ prediction_result }}</div>
+        <!-- Live Ticker Auto-Fill Bar -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4 shadow-lg">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-down text-blue-400"></i>
+                        Auto-Fill From Yahoo Finance
+                    </h2>
+                    <p class="text-slate-400 text-xs mt-0.5">Select or enter a ticker symbol to fetch real-time market data instantly.</p>
+                </div>
+
+                <!-- Ticker Lookup Form -->
+                <form method="GET" action="{{ url_for('predict') }}" class="flex items-center gap-2">
+                    <input type="text" name="ticker" value="{{ selected_ticker }}" placeholder="e.g. AAPL, NVDA" required 
+                           class="px-4 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 uppercase font-mono w-36">
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        <span>Load Data</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Quick Ticker Chips -->
+            <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-700/60">
+                <span class="text-xs text-slate-400 font-medium mr-1">Popular Tickers:</span>
+                {% for ticker in popular_tickers %}
+                    <a href="{{ url_for('predict', ticker=ticker) }}" 
+                       class="px-3 py-1 text-xs font-mono font-semibold rounded-lg border transition {% if selected_ticker == ticker %} bg-blue-600 border-blue-500 text-white {% else %} bg-slate-900/80 border-slate-700 text-slate-300 hover:border-blue-500 hover:text-white {% endif %}">
+                        {{ ticker }}
+                    </a>
+                {% endfor %}
+            </div>
         </div>
+
+        <!-- Prediction Output & Trend Chart Section -->
+        {% if prediction_result %}
+        <div class="space-y-6">
+            <!-- Prediction Value Card -->
+            <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 text-center space-y-2">
+                <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Estimated Stock Price</span>
+                <div class="text-4xl md:text-5xl font-extrabold text-emerald-300">{{ prediction_result }}</div>
+            </div>
+
+            <!-- Prediction Trend Graph Card -->
+            <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-blue-400"></i>
+                        Price Trend & Prediction Analysis
+                    </h2>
+                    <span class="text-xs px-2.5 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full font-mono">
+                        Model Output
+                    </span>
+                </div>
+
+                <!-- Canvas Container -->
+                <div class="relative h-64 md:h-80 w-full">
+                    <canvas id="predictionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Initialization Script -->
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                const ctx = document.getElementById('predictionChart').getContext('2d');
+
+                // Extract values directly from Flask template data
+                const openPrice = parseFloat("{{ form_data.get('open', 0) }}");
+                const lowPrice = parseFloat("{{ form_data.get('low', 0) }}");
+                const highPrice = parseFloat("{{ form_data.get('high', 0) }}");
+                const closePrice = parseFloat("{{ form_data.get('close', 0) }}");
+                const predictedPrice = parseFloat("{{ raw_prediction if raw_prediction else prediction_result|replace('₦', '')|replace('\$', '')|replace(',', '') }}");
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Open', 'Low', 'High', 'Close', 'Predicted Target'],
+                        datasets: [{
+                            label: 'Stock Price Movement (₦)',
+                            data: [openPrice, lowPrice, highPrice, closePrice, predictedPrice],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                            borderWidth: 3,
+                            pointBackgroundColor: ['#94a3b8', '#ef4444', '#10b981', '#3b82f6', '#f59e0b'],
+                            pointRadius: [6, 6, 6, 6, 9],
+                            pointHoverRadius: 10,
+                            tension: 0.35,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                labels: { color: '#94a3b8', font: { family: 'sans-serif', size: 12 } }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return ` Price: ₦${context.raw.toFixed(2)}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { color: '#94a3b8' }
+                            },
+                            y: {
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: {
+                                    color: '#94a3b8',
+                                    callback: function(value) {
+                                        return '₦' + value;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+        </script>
         {% endif %}
 
         <!-- Input Form -->
         <form method="POST" class="bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Open Price ($)</label>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Open Price (₦)</label>
                     <input type="number" step="any" name="open" value="{{ form_data.get('open', '') }}" required placeholder="e.g. 150.25" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">High Price ($)</label>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">High Price (₦)</label>
                     <input type="number" step="any" name="high" value="{{ form_data.get('high', '') }}" required placeholder="e.g. 153.00" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Low Price ($)</label>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Low Price (₦)</label>
                     <input type="number" step="any" name="low" value="{{ form_data.get('low', '') }}" required placeholder="e.g. 149.50" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Close Price ($)</label>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Close Price (₦)</label>
                     <input type="number" step="any" name="close" value="{{ form_data.get('close', '') }}" required placeholder="e.g. 152.10" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Adjusted Close ($)</label>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Adjusted Close (₦)</label>
                     <input type="number" step="any" name="adj_close" value="{{ form_data.get('adj_close', '') }}" required placeholder="e.g. 152.10" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
@@ -113,7 +236,7 @@
                 </div>
             </div>
 
-            <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-md transition duration-200 flex items-center justify-center space-x-2">
+            <button type="submit" name="calculate_prediction" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-md transition duration-200 flex items-center justify-center space-x-2">
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                 <span>Calculate Stock Prediction</span>
             </button>
